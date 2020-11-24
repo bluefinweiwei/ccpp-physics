@@ -56,14 +56,6 @@
   type = integer
   intent = in
   optional = F
-[ntiwx]
-  standard_name = index_for_ice_cloud_condensate
-  long_name = tracer index for ice water
-  units = index
-  dimensions = ()
-  type = integer
-  intent = in
-  optional = F
 [r_d]
   standard_name = gas_constant_dry_air
   long_name = ideal gas constant for dry air
@@ -286,7 +278,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  intent = in
+  intent = inout
   optional = F
 [u10]
   standard_name = x_wind_at_10m
@@ -295,7 +287,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  intent = in
+  intent = inout
   optional = F
 [v10]
   standard_name = y_wind_at_10m
@@ -304,7 +296,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  intent = in
+  intent = inout
   optional = F
 [rubltenx]
   standard_name = tendency_of_x_wind_due_to_model_physics

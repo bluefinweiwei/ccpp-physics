@@ -60,11 +60,11 @@
 !! \htmlinclude bl_temf_run.html
 !!
 ! -------------------------------------------------------------------------------------------
-    subroutine bl_temf_run (im,km,dt,nvdiff,ntqvx,ntcwx,ntiwx,&
+    subroutine bl_temf_run (im,km,dt,nvdiff,ntqvx,ntcwx,&
                             r_d,r_v,cp,g,ep1,ep2,xlv,karman,&
                             tsk,hfx,qfx,zorl,zsrf,sinlat,&
                             exner,ugrs,vgrs,tgrs,qgrs,p2d,phil,prsi,&
-                            kpbl1d,hpbl,u10,v10,t2,&
+                            kpbl1d,hpbl,t2,u10,v10,&
                             rubltenx, rvbltenx, rtbltenx, rqbltenx,     &
                             lssav, ldiag3d, qdiag3d,                                    &
                             flag_for_pbl_generic_tend, du3dt_PBL, dv3dt_PBL,             &
@@ -78,7 +78,7 @@
     !*WL
 
     ! input variables
-    integer,                                        intent(in)      ::  im,km,nvdiff,ntqvx,ntcwx,ntiwx
+    integer,                                        intent(in)      ::  im,km,nvdiff,ntqvx,ntcwx
     logical,                                        intent(in)      ::  lssav, ldiag3d, qdiag3d, flag_for_pbl_generic_tend
     real(kind=kind_phys),                           intent(in)      ::  dt,ep1,ep2,r_d,r_v,g,cp,xlv,karman
     real(kind=kind_phys),   dimension(im),          intent(in)      ::  tsk,hfx,qfx,zorl,zsrf,sinlat
@@ -102,11 +102,11 @@
     integer,                                        intent(out)     ::  errflg
 
     ! local variables
-    integer i,k,kt
+    integer i,k,l,kt
     real    tvcon,Cepsmf,red_fact,sigq2,rst  ! red_fact for reducing MF components
     logical is_convective
-    integer,               dimension(im)      :: fCor,hdidx,hctidx,lclidx,hmax_idx,h0idx,htidx,tval
-    real(kind=kind_phys),  dimension(im)      :: znt,z0t,sfcTHVF,h0,wstr,hct,hd,lcl,ht,ang,wm,&
+    integer,               dimension(im)      :: hdidx,hctidx,lclidx,hmax_idx,h0idx,htidx,tval
+    real(kind=kind_phys),  dimension(im)      :: fCor,znt,z0t,sfcTHVF,h0,wstr,hct,hd,lcl,ht,ang,wm,&
                                                  convection_TKE_surface_src,sfcFTE,ust
     real(kind=kind_phys),  dimension(im)      :: cfm_temfx,hd_temfx,lcl_temfx,hct_temfx
     real(kind=kind_phys),  dimension(im,km)   :: theta,thetal,thetav
@@ -181,13 +181,10 @@
 
    do i = 1,im      ! Main loop
 
-      !WL* initial value for te_temfx temfinit
-      te_temfx(i,:) = TEmin
-      !*WL
-
       do k=1,km
         theta(i,k) = tgrs(i,k)/exner(i,k)
-        z2d(i,k) = phil(i,k)/g !WL* geopotential heights at model full levels (z2d) *WL
+        z2d(i,k) = phil(i,k)/g  !WL* geopotential heights at model full levels (z2d)
+        te_temfx(i,k) = TEmin   !WL* initial value for te_temfx temfinit
       end do
 
       ! Get incoming surface theta from TSK (WA for now)
@@ -254,7 +251,7 @@
       ! Surface thetaV flux from Stull p.147
 
       !WL* calculate rho and get qf_temfx(i,1) from upward latent heat flux qfx
-      tvcon    = (1.+ep1 * qgrs(i,1,nvdiff))
+      tvcon    = (1.+ep1 * qgrs(i,1,ntqvx))
       rho(i,1) = p2d(i,1)/(r_d * tgrs(i,1) * tvcon)
       qf_temfx(i,1) = qfx(i)/rho(i,1)
       sfcTHVF(i) = hfx(i)/(rho(i,1)*cp) * (1.+0.608*(qgrs(i,1,ntqvx)+qgrs(i,1,ntcwx))) + 0.608*thetav(i,1)*qf_temfx(i,1)
@@ -313,6 +310,11 @@
 
       ! Set flag convective or not for use below
       is_convective = wstr(i) > 0. .AND. MFopt .AND. dthdz(i,1)<0. .AND. dthdz(i,2)<0.  ! WA 12/16/09 require two levels of negative (unstable) gradient
+
+      !WL*
+      print*,'WL***',is_convective
+      !*WL
+
 
       ! Find stability parameters and length scale (on turbulence levels)
       do kt = 1,km-1
@@ -801,26 +803,26 @@
       ! in Matlab code are now handled by WRF outside this PBL context.
 
       u_new(i,:) = u_temf(i,:)
-      call solve_implicit_temf(kmm(i,1:km-1),u_new(i,1+1:km), &
+      call solve_implicit_temf(kmm(i,1:km-1),u_new(i,2:km), &
          uw_temfx(i,1),dzm(i,1:km-1),dzt(i,1:km-1),1,km-1,dt,.FALSE.)
       do k = 2,km-1
          u_new(i,k) = u_new(i,k) + dt * (-(MFCu(i,k)-MFCu(i,k-1))) / dzm(i,k)
       end do
 
       v_new(i,:) = v_temf(i,:)
-      call solve_implicit_temf(kmm(i,1:km-1),v_new(i,1+1:km), &
+      call solve_implicit_temf(kmm(i,1:km-1),v_new(i,2:km), &
          vw_temfx(i,1),dzm(i,1:km-1),dzt(i,1:km-1),1,km-1,dt,.FALSE.)
       do k = 2,km-1
          v_new(i,k) = v_new(i,k) + dt * (-(MFCv(i,k)-MFCv(i,k-1))) / dzm(i,k)
       end do
 
-      call solve_implicit_temf(kh(i,1:km-1),thetal(i,1+1:km),Fz(i,1),dzm(i,1:km-1),&
+      call solve_implicit_temf(kh(i,1:km-1),thetal(i,2:km),Fz(i,1),dzm(i,1:km-1),&
                                dzt(i,1:km-1),1,km-1,dt,.FALSE.)
       do k = 2,km-1
          thetal(i,k) = thetal(i,k) + dt * (-(MFCth(i,k)-MFCth(i,k-1))) / dzm(i,k)
       end do
 
-      call solve_implicit_temf(kh(i,1:km-1),qt(i,1+1:km),QFK(i,1),dzm(i,1:km-1),&
+      call solve_implicit_temf(kh(i,1:km-1),qt(i,2:km),QFK(i,1),dzm(i,1:km-1),&
                                dzt(i,1:km-1),1,km-1,dt,.FALSE.)
       do k = 2,km-1
          qt(i,k) = qt(i,k) + dt * (-(MFCq(i,k)-MFCq(i,k-1))) / dzm(i,k)
@@ -850,8 +852,8 @@
          srcs(i,kt) = -uw_temfx(i,kt) * dudz(i,kt) - vw_temfx(i,kt) * dvdz(i,kt) - &
                       Cgamma * te_temfx(i,kt)**1.5 * linv(i,kt) + buoy_src(i,kt)
       end do
-      call solve_implicit_temf((kmm(i,1:km-1)+kmm(i,1+1:km))/2.0, &
-         te_temfx(i,1+1:km),sfcFTE(i),dzt(i,1+1:km),dzt(i,1:km-1),1,km-1,dt,.false.)
+      call solve_implicit_temf((kmm(i,1:km-1)+kmm(i,2:km))/2.0, &
+         te_temfx(i,2:km),sfcFTE(i),dzt(i,2:km),dzt(i,1:km-1),1,km-1,dt,.false.)
       do kt = 2,km-1
          te_temfx(i,kt) = te_temfx(i,kt) + dt * srcs(i,kt)
          te_temfx(i,kt) = te_temfx(i,kt) + dt * (-(MFCTE(i,kt)-MFCTE(i,kt-1))) / dzt(i,kt)
@@ -875,7 +877,7 @@
       ! See opposite conversion at top of subroutine
       ! WA this accounts for offset of indexing between
       ! WRF and TEMF, see notes at top of this routine.
-      call thlqt2thqvqc(thetal(i,1+1:km),qt(i,1+1:km), &
+      call thlqt2thqvqc(thetal(i,2:km),qt(i,2:km), &
          theta_new(i,1:km-1),qvx_new(i,1:km-1),qcx_new(i,1:km-1), &
          p2d(i,1:km-1),exner(i,1:km-1),1,km-1,ep2,xlv,cp)
 
@@ -886,8 +888,18 @@
          rubltenx(i,k) = rubltenx(i,k) + (u_new(i,k+1) - u_temf(i,k+1)) / dt
          rvbltenx(i,k) = rvbltenx(i,k) + (v_new(i,k+1) - v_temf(i,k+1)) / dt
          rtbltenx(i,k) = rtbltenx(i,k) + (theta_new(i,k) - theta(i,k)) * exner(i,k) / dt ! convert from pot temp to air temp
-         rqbltenx(i,k,ntqvx) = rqbltenx(i,k,ntqvx) + (qvx_new(i,k) - qgrs(i,k,ntqvx)) / dt
-         rqbltenx(i,k,ntcwx) = rqbltenx(i,k,ntcwx) + (qcx_new(i,k) - qgrs(i,k,ntcwx)) / dt
+
+          !WL*do l=1,nvdiff-1
+            rqbltenx(i,k,ntqvx) = rqbltenx(i,k,ntqvx) + (qvx_new(i,k) - qgrs(i,k,ntqvx)) / dt
+            rqbltenx(i,k,ntcwx) = rqbltenx(i,k,ntcwx) + (qcx_new(i,k) - qgrs(i,k,ntcwx)) / dt
+            !WL*if (l==ntqvx) then
+            !    rqbltenx(i,k,ntqvx) = rqbltenx(i,k,ntqvx) + (qvx_new(i,k) - qgrs(i,k,ntqvx)) / dt
+            !WL*else if (l==ntcwx) then
+            !    rqbltenx(i,k,ntcwx) = rqbltenx(i,k,ntcwx) + (qcx_new(i,k) - qgrs(i,k,ntcwx)) / dt
+            !WL*else
+            !    rqbltenx(i,k,l) = rqbltenx(i,k,l) + (0. - qgrs(i,k,l)) / dt
+            !WL*endif
+          !WL*enddo
          !WL* Cumulative_change of u, v, t, q due to PBL parameterization
           if(lssav .and. ldiag3d .and. .not. flag_for_pbl_generic_tend) then
             dt3dt_pbl(i,k) = dt3dt_pbl(i,k) + (theta_new(i,k) - theta(i,k)) * exner(i,k)
