@@ -480,10 +480,9 @@ module mp_thompson
          ! For now (22Mar2018), standard deviation should be only 0.25 and cut-off at 1.5
          ! in order to constrain the various perturbations from being too extreme.
          !+---+-----------------------------------------------------------------+
-         integer, parameter :: spp_mp = 7 ! default as 7 to perturb all three fields 
+         integer, parameter :: spp_mp = 7 ! hard coded as 7 to perturb all three fields 
          ! spp_wts_mp only allocated if do_spp == .true.
          real(kind_phys),              intent(in) :: spp_wts_mp(:,:)
-         real(kind_phys) :: pattern_spp_mp(1:ncol,1:nlev)
          ! Dimensions used in mp_gt_driver
          integer         :: ids,ide, jds,jde, kds,kde, &
                             ims,ime, jms,jme, kms,kme, &
@@ -600,20 +599,6 @@ module mp_thompson
          kme = nlev
          kte = nlev
 
-         do k=1,nlev
-            do i=1,ncol
-                pattern_spp_mp(i,k)=0.0
-            enddo
-         enddo
-
-         if ( do_spp ) then
-            do k=1,nlev
-                do i=1,ncol
-                    pattern_spp_mp(i,k)=spp_wts_mp(i,k)
-                enddo
-            enddo
-         endif
-
          !> - Call mp_gt_driver() with or without aerosols
          if (is_aerosol_aware) then
             call mp_gt_driver(qv=qv_mp, qc=qc_mp, qr=qr_mp, qi=qi_mp, qs=qs_mp, qg=qg_mp,    &
@@ -631,7 +616,7 @@ module mp_thompson
                               rand_perturb_on=spp_mp, kme_stoch=kme_stoch,                   &
                               ! DH* 2020-06-05 not passing this optional argument, see
                               !       comment in module_mp_thompson.F90 / mp_gt_driver
-                              rand_pert=pattern_spp_mp,                                      &
+                              rand_pert=spp_wts_mp,                                      &
                               ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde,          &
                               ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme,          &
                               its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte,          &
@@ -652,7 +637,7 @@ module mp_thompson
                               rand_perturb_on=spp_mp, kme_stoch=kme_stoch,                   &
                               ! DH* 2020-06-05 not passing this optional argument, see
                               !       comment in module_mp_thompson.F90 / mp_gt_driver
-                              rand_pert=pattern_spp_mp,                                      &
+                              rand_pert=spp_wts_mp,                                      &
                               ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde,          &
                               ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme,          &
                               its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte,          &
