@@ -226,7 +226,7 @@ show some variables in the namelist that must match the SDF.
 <tr><td>dspfac          <td> \ref satmedmfvdifq     <td>TKE dissipative heating factor                    <td>1.0
 <tr><td>bl_upfr         <td> \ref satmedmfvdifq             <td>updraft fraction in boundary layer mass flux scheme       <td>0.13
 <tr><td>bl_dnfr         <td> \ref satmedmfvdifq             <td>downdraft fraction in boundary layer mass flux scheme     <td>0.1  
-<tr><td>tc_pbl          <td> \ref satmedmfvdifq          <td>control for tropical cyclone applications in the TKE-EDMF PBL scheme <td>.false.
+<tr><td>tc_pbl          <td> \ref satmedmfvdifq          <td>control for tropical cyclone applications in the TKE-EDMF PBL scheme <td>0
 <tr><td>grav_settling   <td>mynnedmf_wrapper          <td>flag to activate gravitational settling of cloud droplets as described in Nakanishi (2000) \cite nakanishi_2000 <td>0
 <tr><td>bl_mynn_mixlength    <td>mynnedmf_wrapper     <td>flag for different version of mixing length formulation \n 
                                                       <ul>
