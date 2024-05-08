@@ -259,7 +259,7 @@ contains
  
       if(imp_physics == imp_physics_gfdl_v3) then 
 
-        last_step = .false.
+        last_step = .true.
         do_inline_mp = .false. 
         hs = oro(:) * con_g 
         gsize = sqrt(garea(:)) 
