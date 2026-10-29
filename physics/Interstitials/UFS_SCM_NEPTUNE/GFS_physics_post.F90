@@ -18,8 +18,8 @@ contains
   subroutine GFS_physics_post_run(nCol, nLev, ntoz, ntracp100, nprocess, nprocess_summed,   &
        dtidx, is_photochem, ldiag3d, ip_physics, ip_photochem, ip_prod_loss, ip_ozmix,      &
        ip_temp, ip_overhead_ozone, do3_dt_prd, do3_dt_ozmx, do3_dt_temp, do3_dt_ohoz,       &
-       ntqv, dqv_dt_prd, dqv_dt_qvmx, &
-       dtend, errmsg, errflg)
+       ntqv, dqv_dt_prd, dqv_dt_qvmx, dtend, u, v, t, qv, prevsu, prevsv, prevst, prevsq,   &
+       errmsg, errflg)
 
     ! Inputs
     integer, intent(in) :: &
@@ -43,6 +43,9 @@ contains
     logical, intent(in), dimension(:) :: &
          is_photochem      !< Flags for photochemistry processes to sum
 
+    real(kind=kind_phys), intent(in), dimension(:,:) :: &
+         u, v, t, qv             !< Current state variables
+
     ! Inputs (optional)
     real(kind=kind_phys), intent(in), dimension(:,:), pointer, optional :: &
          do3_dt_prd,     & !< Physics tendency: production and loss effect
@@ -55,6 +58,8 @@ contains
     ! Outputs
     real(kind=kind_phys), intent(inout), dimension(:,:,:), optional :: &
          dtend             !< Diagnostic tendencies for state variables
+    real(kind=kind_phys), intent(inout), dimension(:,:) :: &
+         prevsu, prevsv, prevst, prevsq    !< Saved state variables after physics
     character(len=*), intent(out) :: &
          errmsg            !< CCPP error message
     integer, intent(out) :: &
@@ -67,6 +72,14 @@ contains
     ! Initialize CCPP error handling variables
     errmsg = ''
     errflg = 0
+
+    ! Save state variables at the end of physics for next time step
+    prevsu(:,:) = u(:,:)
+    prevsv(:,:) = v(:,:)
+    prevst(:,:) = t(:,:)
+    prevsq(:,:) = qv(:,:)
+
+    ! Everything below is related to 3d diagnostics
 
     if(.not.ldiag3d) then
        return

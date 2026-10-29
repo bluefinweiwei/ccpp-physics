@@ -1,11 +1,29 @@
 !>\file dcyc2t3.f
-!! This file contains the CCPP-compliant dcyc2t3 codes that fits
-!! radiative fluxes and heating rates from a coarse radiation
-!! calculation time interval into model's more frequent time steps.
+!> This file contains the CCPP-compliant dcyc2t3 codes that fits
+!> radiative fluxes and heating rates from a coarse radiation
+!> calculation time interval into model's more frequent time steps.
+!> Also, just as in GFS_***_generic_post interstital schemes, this module handles the
+!> following tasks:
+!!
+!> - A) Handle any physics-to-physics scheme coupling:
+!>   Save instantaneous tendencies for use by other schemes, or if needed for diagnostics.
+!>   Compute secondary coupling fields needed by downstream parameterizations.
+!>
+!> - B) Update host-model state.
+!>
+!>   (1) immediately apply tendencies:    Current state = current state + dt*current tendency
+!>                                        Accumulated tendency unchanged
+!>   (2) add tendencies to sum:           Accumulated tendency = accumulated tendency + current tendency
+!>                                        Current state unchanged
+!>   (3) add tendencies to sum and apply: Current state = current state + dt*(accumulated tendency + current tendency)
+!>                                        Accumulated tendency = 0
+!>   (4) do nothing:                      Accumulated tendency unchanged
+!>                                        Current state unchanged
+!>
+!> - C) Compute accumulated diagnostics for UFS.
+!>
+!
 
-!! This module contains the CCPP-compliant dcyc2t3 codes that fits
-!! radiative fluxes and heating rates from a coarse radiation
-!! calculation time interval into model's more frequent time steps.
       module dcyc2t3
 
       implicit none
@@ -115,6 +133,8 @@
 !     adjvisdfd(im)- real, t adj sfc uv+vis-diff sw dnward flux (w/m2)  !
 !     xmu   (im)   - real, time step zenith angle adjust factor for sw  !
 !     xcosz (im)   - real, cosine of zenith angle at current time step  !
+!     dtdt_swrad (im,levs) - real, temp tendency due to SW radiation    !
+!     dtdt_lwrad (im,levs) - real, temp tendency due to LW radiation    !
 !                                                                       !
 !  ====================    end of description    =====================  !
 
@@ -190,7 +210,7 @@
      &       adjnirbmu,adjnirdfu,adjvisbmu,adjvisdfu,                   &
      &       adjnirbmd,adjnirdfd,adjvisbmd,adjvisdfd,                   &
      &       gu0, gv0, gt0, gq0, dudt, dvdt, dtdt, dqdt, ten_t, ten_u,  &
-     &       ten_v, ten_q, errmsg,errflg)
+     &       ten_v, ten_q, dtdt_swrad, dtdt_lwrad, errmsg,errflg)
 !
       use machine,         only : kind_phys
 
@@ -268,6 +288,8 @@
       real(kind=kind_phys), dimension(:,:,:), intent(inout) :: dqdt
       real(kind=kind_phys), dimension(:,:), intent(out) :: ten_t, ten_u,&
      &                                                     ten_v
+      real(kind=kind_phys), dimension(:,:), intent(out) :: dtdt_swrad,  &
+     &                                                     dtdt_lwrad
       real(kind=kind_phys), dimension(:,:,:), intent(out) :: ten_q
       character(len=*), intent(out) :: errmsg
       integer,          intent(out) :: errflg
@@ -278,6 +300,7 @@
      &                        rstl, solang, dT
       real(kind=kind_phys), dimension(im,levs+1) :: flxlwup_adj,        &
      &     flxlwdn_adj
+      real(kind=kind_phys), dimension(im,levs) :: ten_t_sw, ten_t_lw
       real(kind=kind_phys) :: fluxlwnet_adj,fluxlwnet,dT_sfc,           &
      &fluxlwDOWN_jac,lfnc,c1
       ! Length scale for flux-adjustment scaling
@@ -286,6 +309,7 @@
       ! Scaling factor for downwelling LW Jacobian profile.
       real(kind=kind_phys), parameter ::                                &
      &     gamma = 0.2
+
 !
 !===> ...  begin here
 !
@@ -457,12 +481,16 @@
                endif
                ten_t(i,k) = swh(i,k)*xmu(i) +                           &
      &              htrlw(i,k)*lfnc + (1.-lfnc)*hlw(i,k)
+               ten_t_sw(i,k) = swh(i,k)*xmu(i)
+               ten_t_lw(i,k) = htrlw(i,k)*lfnc + (1.-lfnc)*hlw(i,k)
             enddo
          enddo
       else
          do k = 1, levs
             do i = 1, im
                ten_t(i,k)  = swh(i,k)*xmu(i)  + hlw(i,k)
+               ten_t_sw(i,k)  = swh(i,k)*xmu(i)
+               ten_t_lw(i,k)  = hlw(i,k)
             enddo
          enddo
       endif
@@ -485,6 +513,23 @@
          endif
       endif
 !     
+
+      !
+      ! A) Scheme-to-Scheme coupling
+      !
+      ! Populate radiation instantaneous physics tendencies.
+      ! These are stored in the GFS diagnostic DDT and are always allocated, so
+      ! they are available to other physics parameterizations.
+      do k=1,levs
+         do i=1,im
+            dtdt_swrad(i,k) = ten_t_sw(i,k)
+            dtdt_lwrad(i,k) = ten_t_lw(i,k)
+         end do
+      end do
+
+      !
+      ! B) Update host-model state.
+      !
       case_rad_scaler_ten: select case (tend_opt_rad_scaler)
         case (1) !immediately apply tendencies
                   !Current state = current state + dt*current tendency

@@ -49,8 +49,8 @@
       real(kind=kind_phys), intent(in   ), dimension(:,:,:) :: gq0
 
       real(kind=kind_phys), intent(inout   ), dimension(:,:), optional :: sigmain, omegain
-      real(kind=kind_phys), intent(inout   ), dimension(:,:), optional :: sigmaout, qmicro, omegaout
-      real(kind=kind_phys), intent(inout), dimension(:,:)   :: rhc, save_qc
+      real(kind=kind_phys), intent(inout   ), dimension(:,:), optional :: sigmaout, omegaout
+      real(kind=kind_phys), intent(inout), dimension(:,:)   :: rhc, save_qc, qmicro
       real(kind=kind_phys), intent(inout), dimension(:,:)   :: save_qi
       real(kind=kind_phys), intent(inout), dimension(:,:)   :: save_tcp
       real(kind=kind_phys), intent(inout), dimension(:,:,:) :: clw

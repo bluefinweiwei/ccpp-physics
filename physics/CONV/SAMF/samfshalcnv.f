@@ -74,9 +74,8 @@
       real(kind=kind_phys), intent(in) ::  delt, cscale
       real(kind=kind_phys), intent(in) :: psp(:), delp(:,:),            &
      &   prslp(:,:), garea(:), hpbl(:), dot(:,:), phil(:,:),            &
-     &   tmf(:,:,:), q(:,:)
-      real(kind=kind_phys), intent(in), optional :: qmicro(:,:),        &
-     &     prevsq(:,:)
+     &   tmf(:,:,:), q(:,:), qmicro(:,:)
+      real(kind=kind_phys), intent(in), optional :: prevsq(:,:)
       real(kind=kind_phys), intent(in), optional :: sigmain(:,:),       &
      &     omegain(:,:)
 !

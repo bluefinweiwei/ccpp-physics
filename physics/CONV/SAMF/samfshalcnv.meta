@@ -85,14 +85,13 @@
   kind = kind_phys
   intent = in
 [qmicro]
-  standard_name = instantaneous_tendency_of_specific_humidity_due_to_microphysics
+  standard_name = tendency_of_specific_humidity_concentration_due_to_MP
   long_name = moisture tendency due to microphysics
   units = kg kg-1 s-1
   dimensions = (horizontal_loop_extent,vertical_layer_dimension)
   type = real
   kind = kind_phys
   intent = in
-  optional = True
 [itc]
   standard_name = index_of_first_chemical_tracer_for_convection
   long_name = index of first chemical tracer transported/scavenged by convection

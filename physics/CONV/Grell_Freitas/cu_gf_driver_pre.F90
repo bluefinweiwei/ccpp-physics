@@ -16,31 +16,17 @@ module cu_gf_driver_pre
 !> \section arg_table_cu_gf_driver_pre_run Argument Table
 !! \htmlinclude cu_gf_driver_pre_run.html
 !!
-   subroutine cu_gf_driver_pre_run (flag_init, flag_restart, gf_coldstart, kdt, fhour, dtp, t, q, prevst, prevsq, &
-                                    forcet, forceq, cactiv, cactiv_m, conv_act, conv_act_m,         &
+   subroutine cu_gf_driver_pre_run (cactiv, cactiv_m, conv_act, conv_act_m,         &
                                     ntsmoke, ntdust, ntcoarsepm, chem3d, gq0, errmsg, errflg)
 
       use machine, only: kind_phys
 
       implicit none
 
-      logical,          intent(in)  :: flag_init
-      logical,          intent(in)  :: flag_restart
-      logical,          intent(in)  :: gf_coldstart
-      integer,          intent(in)  :: kdt
-      real(kind_phys),  intent(in)  :: fhour
-      real(kind_phys),  intent(in)  :: dtp
-      real(kind_phys),  intent(in)  :: t(:,:)
-      real(kind_phys),  intent(in)  :: q(:,:)
-      real(kind_phys),  intent(in)  :: prevst(:,:)
-      real(kind_phys),  intent(in)  :: prevsq(:,:)
-!$acc declare copyin(t,q,prevst,prevsq)
-      real(kind_phys),  intent(out) :: forcet(:,:)
-      real(kind_phys),  intent(out) :: forceq(:,:)
       integer,          intent(out) :: cactiv(:)
       integer,          intent(out) :: cactiv_m(:)
       integer,          intent(in)  :: ntsmoke, ntdust, ntcoarsepm
-!$acc declare copyout(forcet,forceq,cactiv,cactiv_m)
+!$acc declare copyout(cactiv,cactiv_m)
       real(kind_phys),  intent(in)  :: conv_act(:)
       real(kind_phys),  intent(in)  :: conv_act_m(:)
       real(kind_phys),  intent(inout), optional :: chem3d(:,:,:)
@@ -49,35 +35,10 @@ module cu_gf_driver_pre
       character(len=*), intent(out) :: errmsg
       integer,          intent(out) :: errflg
 
-      ! local variables
-      real(kind=kind_phys) :: dtdyn
-
       ! Initialize CCPP error handling variables
       errmsg = ''
       errflg = 0
 
-      ! For restart runs, can assume that prevst and prevsq
-      ! are read from the restart files beforehand, same
-      ! for conv_act.
-      if((flag_init .and. .not.flag_restart) .or. gf_coldstart) then
-!$acc kernels
-        forcet(:,:)=0.0
-        forceq(:,:)=0.0
-!$acc end kernels
-      else
-        dtdyn=3600.0*(fhour)/kdt
-        if(dtp > dtdyn) then
-!$acc kernels
-          forcet(:,:)=(t(:,:) - prevst(:,:))/dtp
-          forceq(:,:)=(q(:,:) - prevsq(:,:))/dtp
-!$acc end kernels
-        else
-!$acc kernels
-          forcet(:,:)=(t(:,:) - prevst(:,:))/dtdyn
-          forceq(:,:)=(q(:,:) - prevsq(:,:))/dtdyn
-!$acc end kernels
-        endif
-      endif
 
 !$acc kernels
       cactiv(:)=nint(conv_act(:))

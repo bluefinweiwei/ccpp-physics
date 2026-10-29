@@ -135,16 +135,16 @@
   kind = kind_phys
   intent = in
 [u10max]
-  standard_name = maximum_u_wind_at_10m_over_maximum_hourly_time_interval
-  long_name = maximum u wind at 10m over maximum hourly time interval
+  standard_name = maximum_x_wind_at_10m_over_maximum_hourly_time_interval
+  long_name = maximum zonal wind at 10m over maximum hourly time interval
   units = m s-1
   dimensions = (horizontal_loop_extent)
   type = real
   kind = kind_phys
   intent = inout
 [v10max]
-  standard_name = maximum_v_wind_at_10m_over_maximum_hourly_time_interval
-  long_name = maximum v wind at 10m over maximum hourly time interval
+  standard_name = maximum_y_wind_at_10m_over_maximum_hourly_time_interval
+  long_name = maximum meridional wind at 10m over maximum hourly time interval
   units = m s-1
   dimensions = (horizontal_loop_extent)
   type = real

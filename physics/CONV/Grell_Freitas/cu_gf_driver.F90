@@ -108,7 +108,7 @@ contains
         index_of_x_wind, index_of_y_wind, index_of_temperature,            &
         index_of_process_scnv, index_of_process_dcnv, ntqv, ntcw, ntiw
 !$acc declare copyin(dtidx)
-   real(kind=kind_phys),  dimension( : , : ), intent(in    ), optional :: forcet,forceqv_spechum
+   real(kind=kind_phys),  dimension( : , : ), intent(in    ) :: forcet,forceqv_spechum
    real(kind=kind_phys),  dimension( : , : ), intent(in    ) :: w,phil
    real(kind=kind_phys),  dimension( : , : ), intent(in    ) :: t,us,vs
    real(kind=kind_phys),  dimension( : , : ), intent(inout ), optional :: qci_conv

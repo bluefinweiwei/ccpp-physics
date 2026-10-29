@@ -177,7 +177,6 @@
   type = real
   kind = kind_phys
   intent = in
-  optional = True
 [forceqv_spechum]
   standard_name = tendency_of_specific_humidity_due_to_nonphysics
   long_name = moisture tendency due to dynamics only
@@ -186,7 +185,6 @@
   type = real
   kind = kind_phys
   intent = in
-  optional = True
 [phil]
   standard_name = geopotential
   long_name = layer geopotential

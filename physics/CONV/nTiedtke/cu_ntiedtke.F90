@@ -206,7 +206,7 @@ contains
       real(kind=kind_phys), intent(in) :: dt
       real(kind=kind_phys), dimension(:), intent(in) :: evap, hfx, dx
       real(kind=kind_phys), dimension(:,:), intent(in) :: tdi, qvdi, poz, prsl, pomg
-      real(kind=kind_phys), dimension(:,:), intent(in), optional :: pqvf, ptf
+      real(kind=kind_phys), dimension(:,:), intent(in) :: pqvf, ptf
       real(kind=kind_phys), dimension(:,:),intent(in) :: pzz, prsi
 
 !--- inout arguments:

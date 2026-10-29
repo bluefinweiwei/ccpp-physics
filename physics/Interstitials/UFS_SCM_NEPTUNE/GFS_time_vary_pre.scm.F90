@@ -65,10 +65,11 @@
 !> \section arg_table_GFS_time_vary_pre_timestep_init Argument Table
 !! \htmlinclude GFS_time_vary_pre_timestep_init.html
 !!
-      subroutine GFS_time_vary_pre_timestep_init (jdat, idat, dtp, nsswr, &
-        nslwr, idate, debug, me, master, nscyc, sec, phour, zhour, fhour, kdt,   &
+      subroutine GFS_time_vary_pre_timestep_init (jdat, idat, dtp, nsswr,                &
+        nslwr, idate, debug, me, master, nscyc, sec, phour, zhour, fhour, kdt,           &
         julian, yearlen, ipt, lprnt, lssav, lsswr, lslwr, solhr, tgrs, ugrs, vgrs, qgrs, &
-        gt0 , gu0 , gv0 , gq0 , errmsg, errflg)
+        flag_init, flag_restart, ntqv, prevsu, prevsv, prevst, prevsq,                   &
+        forceu, forcev, forcet, forceq, gt0 , gu0 , gv0 , gq0 , errmsg, errflg)
 
         use machine,               only: kind_phys, kind_dbl_prec, kind_sngl_prec
 
@@ -77,24 +78,28 @@
         integer,                          intent(in)    :: idate(:)
         integer,                          intent(in)    :: jdat(:), idat(:)
         integer,                          intent(in)    :: nsswr, nslwr, me,     &
-                                                           master, nscyc
+                                                           master, nscyc, ntqv
         logical,                          intent(in)    :: debug
         real(kind=kind_phys),             intent(in)    :: dtp
+        logical,                          intent(in)    :: flag_init, flag_restart
 
         integer,                          intent(out)   :: kdt, yearlen, ipt
         logical,                          intent(out)   :: lprnt, lssav, lsswr,  &
                                                            lslwr
         real(kind=kind_phys),             intent(out)   :: sec, phour, zhour,    &
                                                            fhour, julian, solhr
-        
         real(kind=kind_phys), intent(in ), dimension(:,:)   :: tgrs, ugrs, vgrs
         real(kind=kind_phys), intent(in ), dimension(:,:,:) :: qgrs
+        real(kind=kind_phys), intent(in ), dimension(:,:)   :: prevsu, prevsv, prevst, prevsq
+
         real(kind=kind_phys), intent(out), dimension(:,:)   :: gt0, gu0, gv0
         real(kind=kind_phys), intent(out), dimension(:,:,:) :: gq0
+        real(kind=kind_phys), intent(out), dimension(:,:)   :: forceu, forcev, forcet, forceq
         
         character(len=*),                 intent(out)   :: errmsg
         integer,                          intent(out)   :: errflg
 
+        real(kind=kind_phys) :: dtdyn
         real(kind=kind_phys), parameter :: con_24  =   24.0_kind_phys
         real(kind=kind_phys), parameter :: con_hr  = 3600.0_kind_phys
         real(kind=kind_dbl_prec)  :: rinc8(5)
@@ -115,7 +120,7 @@
            errflg = 1
            return
         end if
-        
+
         !--- set current state variables from timestep initial variables
         gt0(:,:)   = tgrs(:,:)
         gu0(:,:)   = ugrs(:,:)
@@ -204,6 +209,28 @@
           print *,' fhour ', fhour
           print *,' phour ', phour
           print *,' solhr ', solhr
+        endif
+
+        ! Calculate tendencies due to non-physics
+        ! For restart runs, can assume that prevs* are read from the restart files beforehand
+        if(flag_init .and. .not.flag_restart) then
+            forceu(:,:)=0.0
+            forcev(:,:)=0.0
+            forcet(:,:)=0.0
+            forceq(:,:)=0.0
+        else
+            dtdyn=3600.0*(fhour)/kdt
+            if(dtp > dtdyn) then
+                forceu(:,:)=(ugrs(:,:) - prevsu(:,:))/dtp
+                forcev(:,:)=(vgrs(:,:) - prevsv(:,:))/dtp
+                forcet(:,:)=(tgrs(:,:) - prevst(:,:))/dtp
+                forceq(:,:)=(qgrs(:,:,ntqv) - prevsq(:,:))/dtp
+            else
+                forceu(:,:)=(ugrs(:,:) - prevsu(:,:))/dtdyn
+                forcev(:,:)=(vgrs(:,:) - prevsv(:,:))/dtdyn
+                forcet(:,:)=(tgrs(:,:) - prevst(:,:))/dtdyn
+                forceq(:,:)=(qgrs(:,:,ntqv) - prevsq(:,:))/dtdyn
+            endif
         endif
 
       end subroutine GFS_time_vary_pre_timestep_init

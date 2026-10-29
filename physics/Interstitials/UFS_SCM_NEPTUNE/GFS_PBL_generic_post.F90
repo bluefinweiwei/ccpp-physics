@@ -1,6 +1,27 @@
 !> \file GFS_PBL_generic_post.F90
-!!  Contains code related to PBL schemes to be called after PBL schemes within GFS-based physics suites.
-
+!> This file contains the CCPP-compliant PBL post interstitial code to be called after PBL schemes.
+!>
+!> Just as in other GFS_***_generic_post interstital schemes, this module handles the
+!> following tasks:
+!!
+!> - A) Handle any physics-to-physics scheme coupling:
+!>   Save instantaneous tendencies for use by other schemes, or if needed for diagnostics.
+!>   Compute secondary coupling fields needed by downstream parameterizations.
+!>
+!> - B) Update host-model state.
+!>
+!>   (1) immediately apply tendencies:    Current state = current state + dt*current tendency
+!>                                        Accumulated tendency unchanged
+!>   (2) add tendencies to sum:           Accumulated tendency = accumulated tendency + current tendency
+!>                                        Current state unchanged
+!>   (3) add tendencies to sum and apply: Current state = current state + dt*(accumulated tendency + current tendency)
+!>                                        Accumulated tendency = 0
+!>   (4) do nothing:                      Accumulated tendency unchanged
+!>                                        Current state unchanged
+!>
+!> - C) Compute accumulated diagnostics for UFS.
+!>
+! ###########################################################################################
     module GFS_PBL_generic_post
 
     contains
@@ -14,7 +35,8 @@
         imp_physics_gfdl, imp_physics_thompson, imp_physics_wsm6, imp_physics_mg, imp_physics_tempo, lthailaware,              &
         imp_physics_fer_hires, imp_physics_nssl, nssl_ccn_on, ltaerosol, mraerosol, nssl_hail_on, nssl_3moment,                &
         cplflx, cplaqm, cplchm, cplcat, lssav, flag_for_pbl_generic_tend, ldiag3d, lsidea, hybedmf, do_shoc, satmedmf,         &
-        shinhong, do_ysu, dvdftra, ten_t_pbl, ten_q_pbl, ten_t, ten_u, ten_v, ten_q, dusfc1, dvsfc1, dtsfc1, dqsfc1, dtf, dtp, &
+        shinhong, do_ysu, do_mynnedmf, dvdftra, dudt_pbl, dvdt_pbl, dtdt_pbl, dqdt_pbl, ten_t, ten_u, ten_v, ten_q,                         &
+        dusfc1, dvsfc1, dtsfc1, dqsfc1, dtf, dtp, &
         dudt, dvdt, dtdt, dqdt, dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dtend, dtidx, index_of_temperature, index_of_x_wind,          &
         index_of_y_wind, index_of_process_pbl, dqsfc_cpl, dusfci_cpl, dvsfci_cpl, dtsfci_cpl, dqsfci_cpl, dusfc_diag,          &
         dvsfc_diag, dtsfc_diag, dqsfc_diag, dusfci_diag, dvsfci_diag, dtsfci_diag, dqsfci_diag,                                &
@@ -39,7 +61,7 @@
       integer, intent(in) :: imp_physics_nssl
       logical, intent(in) :: nssl_ccn_on, nssl_hail_on, nssl_3moment
       logical, intent(in) :: ltaerosol, cplflx, cplaqm, cplchm, cplcat, lssav, ldiag3d, lsidea, use_med_flux, mraerosol, lthailaware
-      logical, intent(in) :: hybedmf, do_shoc, satmedmf, shinhong, do_ysu
+      logical, intent(in) :: hybedmf, do_shoc, satmedmf, shinhong, do_ysu, do_mynnedmf
 
       logical, intent(in) :: flag_for_pbl_generic_tend      
 
@@ -56,8 +78,7 @@
 
       real(kind=kind_phys), dimension(:,:, :), intent(in) :: dvdftra
       real(kind=kind_phys), dimension(:,:), intent(in) :: ten_t, ten_u, ten_v
-      real(kind=kind_phys), dimension(:,:), intent(out) :: ten_t_pbl,ten_q_pbl
-      real(kind=kind_phys), dimension(:,:,:), intent(out) :: ten_q
+      real(kind=kind_phys), dimension(:,:,:), intent(inout) :: ten_q
       real(kind=kind_phys), dimension(:), intent(in) :: dusfc1, dvsfc1, dtsfc1, dqsfc1
       real(kind=kind_phys), dimension(:,:), intent(inout) :: dudt, dvdt, dtdt
       real(kind=kind_phys), dimension(:,:, :), intent(inout) :: dqdt
@@ -82,6 +103,8 @@
       ! From canopy heat storage - reduction factors in latent/sensible heat flux due to surface roughness
       real(kind=kind_phys), dimension(:), intent(in) :: hffac
 
+      real(kind=kind_phys), dimension(:,:), intent(out) :: dudt_pbl, dvdt_pbl, dtdt_pbl, dqdt_pbl
+
       character(len=*), intent(out) :: errmsg
       integer, intent(out) :: errflg
 
@@ -95,13 +118,18 @@
       ! Initialize CCPP error handling variables
       errmsg = ''
       errflg = 0
-      ten_q = 0.0
-      ten_t_pbl = 0.0
-      ten_q_pbl = 0.0
+
+      if (.not. do_mynnedmf) ten_q = 0.0   ! MYNN supplies ten_q in its run phase
+
+      dudt_pbl = 0.0
+      dvdt_pbl = 0.0
+      dtdt_pbl = 0.0
+      dqdt_pbl = 0.0
+
 !GJF: dvdftra is only used if nvdiff != ntrac or (nvdiff == ntrac .and. )
       if (nvdiff == ntrac .and. (hybedmf .or. do_shoc .or. satmedmf)) then
         ten_q = dvdftra
-      elseif (nvdiff /= ntrac .and. .not. shinhong .and. .not. do_ysu) then
+      elseif (nvdiff /= ntrac .and. .not. shinhong .and. .not. do_ysu .and. .not. do_mynnedmf) then
 !
         if (ntke>0) then
           do k=1,levs
@@ -359,8 +387,25 @@
 
       endif ! nvdiff == ntrac
 
-      
 
+      !
+      ! A) Scheme-to-Scheme coupling
+      !
+      ! Populate PBL instantaneous physics tendencies.
+      ! These are stored in the GFS diagnostic DDT and are always allocated, so
+      ! they are available to other physics parameterizations.
+      do k=1,levs
+         do i=1,im
+            dudt_pbl(i,k) = ten_u(i,k)
+            dvdt_pbl(i,k) = ten_v(i,k)
+            dtdt_pbl(i,k) = ten_t(i,k)
+            dqdt_pbl(i,k) = ten_q(i,k,ntqv)
+         end do
+      end do
+
+      !
+      ! B) Update host-model state.
+      ! 
       case_PBL_ten: select case (tend_opt_pbl)
         case (1) !immediately apply tendencies
                   !Current state = current state + dt*current tendency
@@ -417,7 +462,7 @@
 
 !  --- ...  coupling insertion
 
-      if (cplflx) then
+      if (cplflx .and. .not. do_mynnedmf) then
         do i=1,im
           if (oceanfrac(i) > zero) then      ! Ocean only, NO LAKES
             if ( .not. wet(i)) then ! no open water
@@ -506,7 +551,7 @@
       end if
 
 !-------------------------------------------------------lssav if loop ----------
-      if (lssav) then
+      if (lssav .and. .not. do_mynnedmf) then
         do i=1,im
           dusfc_diag (i) = dusfc_diag(i) + dusfc1(i) * dtf
           dvsfc_diag (i) = dvsfc_diag(i) + dvsfc1(i) * dtf
@@ -553,15 +598,6 @@
         endif
 
       endif   ! end if_lssav
-
-      !Output t and q tenedncies for PBL only to be used
-      !as input in other schemes
-      do k=1,levs
-         do i=1,im
-            ten_t_pbl(i,k)=ten_t(i,k)
-            ten_q_pbl(i,k)=ten_q(i,k,ntqv)
-         end do
-      end do
 
       end subroutine GFS_PBL_generic_post_run
 
