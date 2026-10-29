@@ -108,7 +108,8 @@
      &                                    betascu
       real(kind=kind_phys), intent(in), optional :: ca_deep(:)
       real(kind=kind_phys), intent(in), optional :: sigmain(:,:),       &
-     &     qmicro(:,:),  prevsq(:,:), omegain(:,:)
+     &     prevsq(:,:), omegain(:,:)
+      real(kind=kind_phys), intent(in) ::  qmicro(:,:)
       real(kind=kind_phys), intent(in) :: tmf(:,:,:),q(:,:)
       real(kind=kind_phys), dimension (:), intent(in), optional :: maxMF
       real(kind=kind_phys), intent(out) :: rainevap(:)

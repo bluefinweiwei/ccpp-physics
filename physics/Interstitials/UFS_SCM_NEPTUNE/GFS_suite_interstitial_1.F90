@@ -10,7 +10,7 @@
 !! \htmlinclude GFS_suite_interstitial_1_run.html
 !!
     subroutine GFS_suite_interstitial_1_run (im, levs, ntrac, dtf, dtp, slmsk, area, dxmin, dxinv, pgr, &
-      islmsk, work1, work2, psurf, dudt, dvdt, dtdt, dqdt, errmsg, errflg)
+      islmsk, work1, work2, psurf, dudt, dvdt, dtdt, dqdt, ten_u, ten_v, ten_t, ten_q, errmsg, errflg)
 
       use machine, only: kind_phys
 
@@ -25,6 +25,8 @@
       real(kind=kind_phys), intent(out), dimension(:)     :: work1, work2, psurf
       real(kind=kind_phys), intent(out), dimension(:,:)   :: dudt, dvdt, dtdt
       real(kind=kind_phys), intent(out), dimension(:,:,:) :: dqdt
+      real(kind=kind_phys), intent(out), dimension(:,:)   :: ten_u, ten_v, ten_t
+      real(kind=kind_phys), intent(out), dimension(:,:,:) :: ten_q
       
       character(len=*),     intent(out)                   :: errmsg
       integer,              intent(out)                   :: errflg
@@ -59,6 +61,22 @@
             dqdt(i,k,n) = zero
           enddo
         enddo
+      enddo
+
+      ! Reset instantaeous tendencies
+      do k=1,levs
+         do i=1,im
+           ten_u(i,k)  = zero
+           ten_v(i,k)  = zero
+           ten_t(i,k)  = zero
+         enddo
+       enddo
+       do n=1,ntrac
+         do k=1,levs
+           do i=1,im
+             ten_q(i,k,n) = zero
+           enddo
+         enddo
       enddo
 
     end subroutine GFS_suite_interstitial_1_run

@@ -1,10 +1,31 @@
 !> \file GFS_MP_generic_post.F90
-!! This file contains the subroutines that calculate diagnotics variables
-!! after calling any microphysics scheme:
+!> This file contains the CCPP-compliant microphysics post interstitial code after calling any microphysics scheme.
+!>
+!> Just as in other GFS_***_generic_post interstital schemes, this module handles the
+!> following tasks:
+!!
+!> - A) Handle any physics-to-physics scheme coupling:
+!>   Save instantaneous tendencies for use by other schemes, or if needed for diagnostics.
+!>   Compute secondary coupling fields needed by downstream parameterizations.
+!>
+!> - B) Update host-model state.
+!>
+!>   (1) immediately apply tendencies:    Current state = current state + dt*current tendency
+!>                                        Accumulated tendency unchanged
+!>   (2) add tendencies to sum:           Accumulated tendency = accumulated tendency + current tendency
+!>                                        Current state unchanged
+!>   (3) add tendencies to sum and apply: Current state = current state + dt*(accumulated tendency + current tendency)
+!>                                        Accumulated tendency = 0
+!>   (4) do nothing:                      Accumulated tendency unchanged
+!>                                        Current state unchanged
+!>
+!> - C) Compute accumulated diagnostics for UFS.
+!>
+!> This file also contains the subroutine that calculates precipitation type and its post, 
+!> which provides precipitation forcing to LSM.
+!>
+! ###########################################################################################
 
-!> This module contains the subroutine that calculates 
-!! precipitation type and its post, which provides precipitation forcing
-!! to LSM.
       module GFS_MP_generic_post
       contains
 
@@ -16,17 +37,17 @@
 !! \htmlinclude GFS_MP_generic_post_run.html
 !!
       subroutine GFS_MP_generic_post_run(                                                                                 &
-        im, levs, kdt, tend_opt_mp, nrcm, nncl, ntcw, ntrac, imp_physics, imp_physics_gfdl, imp_physics_thompson,         &
+        im, levs, kdt, tend_opt_mp, nrcm, nncl, ntcw, ntrac, ntqv, imp_physics, imp_physics_gfdl, imp_physics_thompson,   &
         imp_physics_tempo, imp_physics_nssl, imp_physics_mg, imp_physics_fer_hires, cal_pre, cplflx, cplchm, cpllnd,      &
-        progsigma, con_g, rhowater, rainmin, dtf, frain, rainc, rain1, rann, xlat, xlon, ten_t, ten_u, ten_v, ten_q, dudt,&
-        dvdt, dtdt, dqdt, gt0, gu0, gv0, gq0, prsl, prsi, phii, tsfc, ice, phil, htop,                                    &
-        refl_10cm, imfshalcnv,imfshalcnv_gf,imfdeepcnv,imfdeepcnv_gf,imfdeepcnv_samf, con_t0c, snow, graupel,             &
+        progsigma, con_g, rhowater, rainmin, dtf, frain, rainc, rain1, rann, xlat, xlon, ten_t, ten_u, ten_v, ten_q,      &
+        dudt, dvdt, dtdt, dqdt, dudt_mp, dvdt_mp, dtdt_mp, dqdt_mp, gt0, gu0, gv0, gq0, prsl, prsi, phii, tsfc, ice, phil,&
+        htop, refl_10cm, imfshalcnv,imfshalcnv_gf,imfdeepcnv,imfdeepcnv_gf,imfdeepcnv_samf, con_t0c, snow, graupel,       &
         rain0, ice0, snow0, graupel0, del, rain, domr_diag, domzr_diag, domip_diag, doms_diag, tprcp, srflag, sr,         &
         cnvprcp, totprcp, totice, totsnw, totgrp, cnvprcpb, totprcpb, toticeb, totsnwb, totgrpb, rain_cpl, rainc_cpl,     &
         snow_cpl, pwat, frzr, frzrb, frozr, frozrb, tsnowp, tsnowpb, rhonewsn1, exticeden,                                &
         drain_cpl, dsnow_cpl, lsm, lsm_ruc, lsm_noahmp, raincprv, rainncprv, iceprv, snowprv,                             &
         graupelprv, draincprv, drainncprv, diceprv, dsnowprv, dgraupelprv, dtp, num_diag_buckets,                         &
-        dtend, dtidx, index_of_temperature, index_of_process_mp,ldiag3d, qdiag3d,dqdt_qmicro, lssav, num_dfi_radar,       &
+        dtend, dtidx, index_of_temperature, index_of_process_mp,ldiag3d, qdiag3d, lssav, num_dfi_radar,       &
         fh_dfi_radar,index_of_process_dfi_radar, ix_dfi_radar, dfi_radar_tten, radar_tten_limits, fhour, prevsq,      &
         iopt_lake, iopt_lake_clm, lkm, use_lake_model, errmsg, errflg)
 !
@@ -34,7 +55,7 @@
       use calpreciptype_mod, only: calpreciptype
       implicit none
 
-      integer, intent(in) :: im, levs, kdt, tend_opt_mp, nrcm, nncl, ntcw, ntrac, num_dfi_radar, index_of_process_dfi_radar
+      integer, intent(in) :: im, levs, kdt, tend_opt_mp, nrcm, nncl, ntcw, ntrac, ntqv, num_dfi_radar, index_of_process_dfi_radar
       integer, intent(in) :: imp_physics, imp_physics_gfdl, imp_physics_thompson, imp_physics_mg, imp_physics_fer_hires
       integer, intent(in) :: imp_physics_nssl, iopt_lake_clm, iopt_lake, lkm, imp_physics_tempo
       logical, intent(in) :: cal_pre, lssav, ldiag3d, qdiag3d, cplflx, cplchm, cpllnd, progsigma, exticeden
@@ -94,9 +115,11 @@
       real(kind=kind_phys), dimension(:),      intent(inout) :: tsnowp
       real(kind=kind_phys), dimension(:),      intent(inout) :: tsnowpb
       real(kind=kind_phys), dimension(:),      intent(inout) :: rhonewsn1
-      real(kind=kind_phys), dimension(:,:),    intent(inout), optional :: dqdt_qmicro
       real(kind=kind_phys), dimension(:,:),    intent(inout), optional :: prevsq
       real(kind=kind_phys),                    intent(in)    :: dtp
+
+      ! Output tendencies due to microphysics
+      real(kind=kind_phys), dimension(:,:),    intent(out)   :: dudt_mp, dvdt_mp, dtdt_mp, dqdt_mp
 
       ! CCPP error handling
       character(len=*), intent(out) :: errmsg
@@ -137,7 +160,25 @@
       
       save_t = gt0 !save temperature before tendency application in case 
                    !the temperature tendency application is overwritten by radar tendencies below
-      
+
+      !
+      ! A) Scheme-to-Scheme coupling
+      !
+      ! Populate microphysics instantaneous physics tendencies.
+      ! These are stored in the GFS diagnostic DDT and are always allocated, so
+      ! they are available to other physics parameterizations.
+      do k=1,levs
+         do i=1,im
+            dudt_mp(i,k) = ten_u(i,k)
+            dvdt_mp(i,k) = ten_v(i,k)
+            dtdt_mp(i,k) = ten_t(i,k)
+            dqdt_mp(i,k) = ten_q(i,k,ntqv)
+         end do
+      end do
+
+      !
+      ! B) Update host-model state.
+      !
       case_MP_ten: select case (tend_opt_mp)
         case (1) !immediately apply tendencies
                   !Current state = current state + dt*current tendency
@@ -563,14 +604,15 @@
         endif if_tendency_diagnostics
       endif if_save_fields
 
+      ! WL: Remove. dqdt for specific humidity are now output as persistent tendency 
       !If prognostic updraft area fraction is used in saSAS
-      if(progsigma)then
-         do k=1,levs
-            do i=1,im
-               dqdt_qmicro(i,k)=ten_q(i,k,1)
-            enddo
-         enddo
-      endif
+      !if(progsigma)then
+      !   do k=1,levs
+      !      do i=1,im
+      !         dqdt_qmicro(i,k)=ten_q(i,k,1)
+      !      enddo
+      !   enddo
+      !endif
 
       if (cplflx .or. cplchm .or. cpllnd) then
         do i = 1, im

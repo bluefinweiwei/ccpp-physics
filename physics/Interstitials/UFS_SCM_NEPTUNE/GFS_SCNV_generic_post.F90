@@ -1,5 +1,27 @@
 !> \file GFS_SCNV_generic_post.F90
-!!  Contains code related to shallow convective schemes to be used after shallow convection for GFS-based physics suites.
+!> This file contains the CCPP-compliant shallow convective post interstitial code executed after shallow convection schemes.
+!>
+!> Just as in other GFS_***_generic_post interstital schemes, this module handles the
+!> following tasks:
+!!
+!> - A) Handle any physics-to-physics scheme coupling:
+!>   Save instantaneous tendencies for use by other schemes, or if needed for diagnostics.
+!>   Compute secondary coupling fields needed by downstream parameterizations.
+!>
+!> - B) Update host-model state.
+!>
+!>   (1) immediately apply tendencies:    Current state = current state + dt*current tendency
+!>                                        Accumulated tendency unchanged
+!>   (2) add tendencies to sum:           Accumulated tendency = accumulated tendency + current tendency
+!>                                        Current state unchanged
+!>   (3) add tendencies to sum and apply: Current state = current state + dt*(accumulated tendency + current tendency)
+!>                                        Accumulated tendency = 0
+!>   (4) do nothing:                      Accumulated tendency unchanged
+!>                                        Current state unchanged
+!>
+!> - C) Compute accumulated diagnostics for UFS.
+!>
+! ###########################################################################################
 
     module GFS_SCNV_generic_post
 
@@ -8,15 +30,13 @@
 !> \section arg_table_GFS_SCNV_generic_post_run Argument Table
 !! \htmlinclude GFS_SCNV_generic_post_run.html
 !!
-      subroutine GFS_SCNV_generic_post_run (im, levs, tracers_total, otsptflag, imp_physics, imp_physics_gfdl, tend_opt_scnv, lssav, ldiag3d, qdiag3d, &
-        frain, gu0, gv0, gt0, gq0, dudt, dvdt, dtdt, dqdt, ten_t, ten_u, ten_v, ten_q, delt,              &
-        clw, dclw, shcnvcw, rain1, npdf3d, num_p3d, ncnvcld3d, cnvc, cnvw, nsamftrac,    &
-        rainc, cnvprcp, cnvw_phy_f3d, cnvc_phy_f3d,                      &
-        dtend, dtidx, index_of_temperature, index_of_x_wind, index_of_y_wind,      &
-        index_of_process_scnv, ntqv, flag_for_scnv_generic_tend,                   &
-        ntcw,ntiw,ntclamt,ntrw,ntsw,ntrnc,ntsnc,ntgl,ntgnc,ntsigma,                &
-        imfshalcnv, imfshalcnv_sas, imfshalcnv_samf, ntrac,                        &
-        cscnv, satmedmf, trans_trac, ras, errmsg, errflg)
+      subroutine GFS_SCNV_generic_post_run (im, levs, tracers_total, otsptflag, imp_physics, imp_physics_gfdl,  &
+        tend_opt_scnv, lssav, ldiag3d, qdiag3d, frain, gu0, gv0, gt0, gq0, dudt, dvdt, dtdt, dqdt,              &
+        ten_t, ten_u, ten_v, ten_q, delt, dudt_shal, dvdt_shal, dtdt_shal, dqdt_shal, clw, dclw, shcnvcw, rain1,&
+        npdf3d, num_p3d, ncnvcld3d, cnvc, cnvw, nsamftrac, rainc, cnvprcp, cnvw_phy_f3d, cnvc_phy_f3d, dtend,   &
+        dtidx, index_of_temperature, index_of_x_wind, index_of_y_wind, index_of_process_scnv, ntqv,             &
+        flag_for_scnv_generic_tend, ntcw,ntiw,ntclamt,ntrw,ntsw,ntrnc,ntsnc,ntgl,ntgnc,ntsigma,                 &
+        imfshalcnv, imfshalcnv_sas, imfshalcnv_samf, ntrac, cscnv, satmedmf, trans_trac, ras, errmsg, errflg)
 
       use machine,               only: kind_phys
 
@@ -51,17 +71,19 @@
       integer, intent(in) :: imfshalcnv, imfshalcnv_sas, imfshalcnv_samf
       logical, intent(in) :: cscnv, satmedmf, trans_trac, ras
 
-      character(len=*),              intent(out) :: errmsg
-      integer,                       intent(out) :: errflg
-
-      integer :: i, k, n, idtend, tracers
-      real(kind=kind_phys) :: tem
-
       real(kind=kind_phys), dimension(:,:), intent(in) :: ten_t, ten_u, ten_v
       real(kind=kind_phys), dimension(:,:,:), intent(inout) :: ten_q
       real(kind=kind_phys), dimension(:,:), intent(inout) :: dudt, dvdt, dtdt 
       real(kind=kind_phys), dimension(:,:,:), intent(inout) :: dqdt
       real(kind=kind_phys), intent(in) ::  delt
+      real(kind=kind_phys), dimension(:,:), intent(out) :: dudt_shal, dvdt_shal, dtdt_shal, dqdt_shal 
+
+
+      character(len=*),              intent(out) :: errmsg
+      integer,                       intent(out) :: errflg
+
+      integer :: i, k, n, idtend, tracers
+      real(kind=kind_phys) :: tem
 
       ! Initialize CCPP error handling variables
       errmsg = ''
@@ -87,7 +109,25 @@
           ten_q(1:im,:,ntcw) = dclw(1:im,:,1) + dclw(1:im,:,2)
         endif   ! end if_ntiw
       endif   ! end if_ntcw
-      
+
+      !
+      ! A) Scheme-to-Scheme coupling
+      !
+      ! Populate shallow convection instantaneous physics tendencies.
+      ! These are stored in the GFS diagnostic DDT and are always allocated, so
+      ! they are available to other physics parameterizations.
+      do k=1,levs
+         do i=1,im
+            dudt_shal(i,k) = ten_u(i,k)
+            dvdt_shal(i,k) = ten_v(i,k)
+            dtdt_shal(i,k) = ten_t(i,k)
+            dqdt_shal(i,k) = ten_q(i,k,ntqv)
+         end do
+      end do
+
+      !
+      ! B) Update host-model state.
+      ! 
       case_SCNV_ten: select case (tend_opt_scnv)
         case (1) !immediately apply tendencies
                   !Current state = current state + dt*current tendency
