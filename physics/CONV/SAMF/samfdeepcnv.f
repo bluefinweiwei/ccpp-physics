@@ -85,7 +85,8 @@
      &    clam,c0s,c1,betal,betas,evef,pgcon,asolfac,cscale,            &
      &    do_ca, ca_closure, ca_entr, ca_trigger, nthresh,ca_deep,      &
      &    rainevap,sigmain,sigmaout,omegain,omegaout,betadcu,betamcu,   &
-     &    betascu,maxMF,do_mynnedmf,sigmab_coldstart,cat_adj_deep,      &
+     &    betascu,lbb1,lbb2,lbb3,dt_decay,maxMF,do_mynnedmf,            &
+     &    sigmab_coldstart,cat_adj_deep,                                &
      &    errmsg,errflg)
 
 !
@@ -105,7 +106,7 @@
       logical, intent(in)  :: first_time_step,restart,hwrf_samfdeep,    &
      &     progsigma,progomega,do_mynnedmf,sigmab_coldstart
       real(kind=kind_phys), intent(in) :: nthresh,betadcu,betamcu,      &
-     &                                    betascu
+     &     betascu,lbb1,lbb2,lbb3,dt_decay
       real(kind=kind_phys), intent(in), optional :: ca_deep(:)
       real(kind=kind_phys), intent(in), optional :: sigmain(:,:),       &
      &     omegain(:,:)
@@ -214,7 +215,7 @@ cj
      &                     tkcrt,   cmxfac
 cj
 !
-!  parameters for updraft velocity calculation
+!  parameters for diagnostic updraft velocity calculation
       real(kind=kind_phys) bb1, bb2, csmf, wucb
 !
 !  parameters for prognostic sigma closure                                                                                                                                                      
@@ -808,11 +809,13 @@ c
         if(kbcon(i) == kmax(i)) cnvflg(i) = .false.
       enddo
 !!
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 !> - Determine the vertical pressure velocity at the LFC. After Han and Pan (2011) \cite han_and_pan_2011 , determine the maximum pressure thickness between a parcel's starting level and the LFC. If a parcel doesn't reach the LFC within the critical thickness, then the convective inhibition is deemed too great for convection to be triggered, and the subroutine returns to the calling routine without modifying the state variables.
       do i=1,im
@@ -867,11 +870,13 @@ c
          enddo
       endif
 
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 !
 ! re-define kb & kbcon
@@ -921,11 +926,13 @@ c
          enddo
       endif
 
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
       do i=1,im
         if(cnvflg(i)) then
@@ -967,11 +974,13 @@ c
          enddo
       endif
 
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 
 ! turbulent entrainment rate assumed to be proportional
@@ -1383,11 +1392,13 @@ c
          enddo
       endif
 
-      totflg = .true.
-      do i = 1, im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i = 1, im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 c
 c  calculate convective inhibition
@@ -1464,11 +1475,13 @@ c
          enddo
       endif
 
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 c
 c  determine first guess cloud top as the level of zero buoyancy
@@ -1507,11 +1520,13 @@ c
          enddo
       endif
 
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 
 c
@@ -1698,11 +1713,13 @@ c
         if(cnvflg(i) .and. aa1(i) <= 0.) cnvflg(i) = .false.
       enddo
 !!
-      totflg = .true.
-      do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
-      enddo
-      if(totflg) return
+      if(.not.progomega)then
+         totflg = .true.
+         do i=1,im
+            totflg = totflg .and. (.not. cnvflg(i))
+         enddo
+         if(totflg) return
+      endif
 !!
 c
 c  Estimate the convective overshooting as the level
@@ -1818,7 +1835,7 @@ c
       if (progomega) then
          call progomega_calc(first_time_step,restart,im,km,
      &        kbcon1,ktcon,omegain,delt,del,zi,cnvflg,omegaout,
-     &        grav,buo,drag,wush,bb1,bb2)
+     &        grav,buo,drag,wush,lbb1,lbb2,lbb3,dt_decay)
          do k = 1, km
             do i = 1, im
                if (cnvflg(i)) then
@@ -2229,11 +2246,13 @@ c
         endif
       enddo
 !!
+
       totflg = .true.
       do i=1,im
-        totflg = totflg .and. (.not. cnvflg(i))
+         totflg = totflg .and. (.not. cnvflg(i))
       enddo
       if(totflg) return
+      
 !!
 c
 c--- what would the change be, that a cloud with unit mass
